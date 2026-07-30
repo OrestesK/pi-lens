@@ -12,7 +12,7 @@ pi-lens includes **37 language server definitions** (including two cross-cutting
 { "warmFiles": ["src/main.cpp", "src/lib.cpp"] }
 ```
 
-**Agent LSP tools:** `lsp_diagnostics` can check one file, a directory, or an explicit `filePaths` batch with bounded concurrency. `lsp_navigation` provides definitions, references, hover, workspace symbols, call hierarchy, rename edits, and `findSymbol` for filtered document-symbol lookup. Key operations:
+**Agent LSP tools:** `lsp_diagnostics` can check one file, a directory, or an explicit `paths` batch with bounded concurrency. `lsp_navigation` provides definitions, references, hover, workspace symbols, call hierarchy, rename edits, and `findSymbol` for filtered document-symbol lookup. Key operations:
 
 - **`rename`** — renames a symbol across all references; `apply: true` writes workspace edits to disk with per-file LSP re-sync.
 - **`rename_file`** — LSP-aware file rename: sends `workspace/willRenameFiles` to collect import-path rewrites, applies them, renames the file on disk, and notifies servers via `workspace/didRenameFiles`. `apply: false` previews the workspace edits without touching the filesystem.

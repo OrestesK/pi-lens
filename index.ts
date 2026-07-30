@@ -378,7 +378,7 @@ export default function (pi: ExtensionAPI) {
 		description:
 			"Start pi-lens disabled for this session. Re-enable with /lens-toggle.",
 		type: "boolean",
-		default: false,
+		default: true,
 	});
 
 	pi.registerFlag("no-lsp", {
