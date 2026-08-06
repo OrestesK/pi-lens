@@ -362,9 +362,7 @@ export function createLspDiagnosticsTool(
 		name: "lsp_diagnostics" as const,
 		label: "LSP Diagnostics",
 		description:
-			"Get errors, warnings, and hints from language servers for a file or directory. " +
-			"Use BEFORE running builds to proactively check for issues. " +
-			"Works on directories by auto-detecting file extensions and scanning all matching files.",
+			"Get language-server diagnostics for one file, a directory scan, or an explicit file batch.",
 		promptSnippet:
 			"Get LSP diagnostics for a file or directory (use before builds)",
 		renderResult: compactRenderResult<{
@@ -461,11 +459,7 @@ export function createLspDiagnosticsTool(
 			concurrency: Type.Optional(
 				Type.Number({
 					description:
-						"Batch/directory concurrency, in distinct LSP server groups run in parallel " +
-						"(default 8, max 16) — not individual files. Files sharing one server " +
-						"(e.g. a same-language batch) are always processed one at a time against " +
-						"that server regardless of this value; this caps how many DIFFERENT " +
-						"servers run concurrently.",
+						"Parallel LSP server groups for batch/directory scans (default 8, max 16); files sharing a server remain serial.",
 				}),
 			),
 			waitMs: Type.Optional(
@@ -478,13 +472,7 @@ export function createLspDiagnosticsTool(
 				Type.String({
 					enum: ["primary", "all"],
 					description:
-						"'primary' (fast, low-noise): only the file's actual language " +
-						"server (e.g. typescript) — for 'does this have real type " +
-						"errors'. 'all' (default): also touches cross-cutting auxiliary " +
-						"scanners (ast-grep, opengrep, zizmor, typos, marksman) attached " +
-						"to this file, including findings for files not yet dispatched " +
-						"this session. Primary confirmation is always reported " +
-						"separately from auxiliary findings regardless of this setting.",
+						"primary: actual language server only. all (default): also attached auxiliary scanners. Primary confirmation and auxiliary findings stay separate.",
 				}),
 			),
 		}),

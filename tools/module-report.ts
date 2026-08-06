@@ -36,10 +36,8 @@ export function createModuleReportTool(getProjectRoot: () => string) {
 		name: "module_report" as const,
 		label: "Module Report",
 		description:
-			"Structured, navigable overview of a source module — a token-efficient substitute for reading the whole file. Returns each symbol's name/kind/signature/line-range (plus a first-line `doc` summary when a doc comment is attached), important inline callbacks/closures/lambdas with stable handles, plus who-uses-this, risk flags, and ranked recommendedReads. To read a symbol's body: call read/read_symbol with offset=startLine, limit=endLine-startLine+1 on THIS report's `path` — those aren't repeated per symbol. Prefer this before a full read; then use read_symbol (or read) for the exact body you need.\n" +
-			"Single mode: language-uniform tree-sitter outline + review-graph who-uses-this + inline executable extraction; degrades to outline-only when no cached graph is available. `semantic.source` reports whether graph data was used.\n" +
-			'Pass `blastRadius: true` to also get the cross-file blast radius — the transitive dependents of this module aggregated to ranked file `read` args ("if you change this, verify these files"). Read-only over the cached graph; omitted on a cold cache. Supersedes the standalone impact query.\n' +
-			'`view: "compact"` returns a line-oriented text rendering (one line per symbol/callback, cheapest option) instead of JSON — same data, roughly a quarter of the token cost; use it for a quick skim. Default view returns JSON. An outline shows shape, not bodies — it does NOT count as having read a symbol\'s body for editing; use read_symbol for that.',
+			"Source-file outline with symbols, line ranges, callbacks, graph references, risk flags, and recommended reads. " +
+			"Falls back to outline-only without a cached review graph. This reports structure, not symbol bodies.",
 		promptSnippet:
 			"Navigable file outline — a cheap substitute for reading a whole file",
 		renderResult: compactRenderResult<{
@@ -81,13 +79,13 @@ export function createModuleReportTool(getProjectRoot: () => string) {
 				Type.String({
 					enum: ["summary", "default", "compact"],
 					description:
-						"Payload tier. summary returns top-level entries/recommendedReads and section provenance with heavy callback/usedBy/blast-radius payloads omitted. compact (cheapest) returns a line-oriented TEXT rendering of the full report instead of JSON.",
+						"summary omits heavy detail; default returns JSON; compact returns the full report as line-oriented text.",
 				}),
 			),
 			blastRadius: Type.Optional(
 				Type.Boolean({
 					description:
-						"Include the cross-file blast-radius section: transitive dependents aggregated to ranked file reads. Read-only over the cached graph (omitted when cold).",
+						"Include cached-graph transitive dependents as ranked file reads; omitted when cold.",
 				}),
 			),
 			blastRadiusDepth: Type.Optional(
@@ -218,7 +216,8 @@ export function createReadSymbolTool(
 		name: "read_symbol" as const,
 		label: "Read Symbol",
 		description:
-			"Return the verbatim source of a single named symbol or module_report callback handle in a file — a targeted, cheap alternative to reading the whole file. Pair with module_report: module_report finds the symbol/callback handle, read_symbol shows its body. Unlike an outline, this delivers the actual lines, so it counts as having read that symbol for the read-before-edit guard. The returned body includes an attached doc comment when one exists. Accepts a dotted `Class.method` name to resolve a member directly, falling back to a plain top-level lookup when the qualifier doesn't resolve. A miss embeds the ~3 nearest symbol names in the file so a typo self-corrects without a second call. When multiple same-file symbols share a name (overloads, a type and a value sharing a name), the first is returned with an `ambiguous` note; pass `kind` to pick a specific one.",
+			"Return one named symbol or callback body with any attached doc comment, and record read coverage. " +
+			"Supports `Class.method`; misses suggest nearby names; duplicate names return the first match unless `kind` disambiguates.",
 		promptSnippet: "Read one symbol's body instead of the whole file",
 		renderResult: compactRenderResult<{
 			found?: boolean;
@@ -247,12 +246,12 @@ export function createReadSymbolTool(
 			}),
 			symbol: Type.String({
 				description:
-					"Exact symbol name or callback handle to read (e.g. a function, class, type, or module_report callbacks[].name). Accepts a dotted `Class.method` name to resolve a member.",
+					"Exact symbol name, module_report callback handle, or dotted `Class.method`.",
 			}),
 			kind: Type.Optional(
 				Type.String({
 					description:
-						"Optional kind filter (e.g. function, interface, class) to disambiguate when multiple same-file symbols share the requested name. Omitting it returns the first match, same as today.",
+						"Symbol kind filter for duplicate names; omitted returns the first match.",
 				}),
 			),
 		}),
@@ -348,7 +347,7 @@ export function createReadEnclosingTool(
 		name: "read_enclosing" as const,
 		label: "Read Enclosing",
 		description:
-			"Return the verbatim source for the smallest useful symbol/callback enclosing a line in a file. Use after ast_grep_search, diagnostics, or LSP locations when you need exact body text without reading the whole file. Uses tree-sitter only — no LSP or graph build — and records read-guard coverage for the returned range.",
+			"Return the smallest useful symbol or callback enclosing a line and record read coverage. Uses tree-sitter only.",
 		promptSnippet: "Read the enclosing symbol or callback body for a line",
 		renderResult: compactRenderResult<{
 			found?: boolean;
@@ -395,7 +394,7 @@ export function createReadEnclosingTool(
 				Type.String({
 					enum: ["error", "slice", "outline"],
 					description:
-						"Behavior when the enclosing body exceeds maxLines. error (default) returns metadata only; slice returns a bounded partial read around line; outline returns nested symbols/callbacks with read handles.",
+						"Oversize handling: error (default) returns metadata; slice returns nearby lines; outline returns nested read handles.",
 				}),
 			),
 			aroundLine: Type.Optional(

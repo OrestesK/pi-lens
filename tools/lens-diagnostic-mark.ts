@@ -203,16 +203,9 @@ export function createLensDiagnosticMarkTool(getCwd: () => string) {
 		name: "lens_diagnostic_mark" as const,
 		label: "Mark Diagnostic",
 		description:
-			"Record a disposition for a lens_diagnostics finding, using the exact filePath/rule/message/line " +
-			"it was reported with. false-positive/suppress persist across sessions; defer lasts only for the " +
-			"current session (resurfaces next time); flagged marks it for you to come back and fix, and shows " +
-			"up tagged in a later lens_diagnostics mode=full. suppress additionally writes a `pi-lens-ignore: " +
-			"<rule>` comment into the source above the flagged line — rule is required for suppress. " +
-			"The line is verified/reanchored against current diagnostics before writing (#802): if a live " +
-			"diagnostic for this tool/rule/message is now at a different line, that line is used instead of " +
-			"the one you passed. When suppressing several findings in the SAME file in one turn, work " +
-			"bottom-up (highest line number first) — each inserted comment shifts later lines down by one, " +
-			"and reanchoring can't always disambiguate two nearby findings.",
+			"Record a diagnostic disposition from its reported file, line, message, rule, and tool. " +
+			"false-positive/suppress persist; defer is session-only; flagged appears in later full diagnostics. " +
+			"suppress requires a rule and writes an inline ignore comment after reanchoring against current diagnostics.",
 		promptSnippet:
 			"Use lens_diagnostic_mark to dismiss a false-positive, suppress a won't-fix, defer, or flag a finding to fix later",
 		parameters: Type.Object({
@@ -237,7 +230,7 @@ export function createLensDiagnosticMarkTool(getCwd: () => string) {
 			disposition: Type.String({
 				enum: DISPOSITIONS,
 				description:
-					"false-positive = the rule misfired. suppress = real finding, won't fix (writes an inline ignore comment). defer = fix later, this session only. flagged = mark for you to fix.",
+					"false-positive: persistent dismissal; suppress: persistent inline ignore; defer: session-only; flagged: mark to fix.",
 			}),
 			reason: Type.Optional(
 				Type.String({ description: "Optional short reason, kept alongside the disposition." }),

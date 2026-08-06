@@ -27,7 +27,8 @@ export function createSymbolSearchTool(getProjectRoot: () => string) {
 		name: "symbol_search" as const,
 		label: "Symbol Search",
 		description:
-			"Ranked identifier search over the persisted word index (BM25 + priors demoting tests/vendor/docs) — answers 'which files are most relevant to <query>' by identifier. First step of the discovery funnel: symbol_search finds candidates, module_report explains the file, read_symbol reads the body. Complements grep (raw substrings) and lsp_navigation (exact references). Each hit's startLine/endLine mark its best-matching line (offset=startLine, limit=endLine-startLine+1 for a one-line peek); use module_report on `file` for the real outline. Returns available:false with a retry hint if the index isn't built yet — it self-builds in the background (never blocks this call).",
+			"Rank files by identifier relevance from the persisted word index. Hits include the best-matching line range. " +
+			"A cold index returns unavailable and starts a background build.",
 		promptSnippet: "Ranked identifier search — find relevant files by name/usage",
 		renderResult: compactRenderResult<{
 			available?: boolean;
@@ -53,13 +54,13 @@ export function createSymbolSearchTool(getProjectRoot: () => string) {
 			paths: Type.Optional(
 				Type.Array(Type.String(), {
 					description:
-						"Glob array scoping hits to matching files — same shape/semantics as ast_grep_search's `paths` (a bare directory/file entry scopes its whole subtree). Filters before ranking, so scores within the scoped set are unaffected.",
+						"File globs; bare file/directory entries scope their subtree. Applied before ranking.",
 				}),
 			),
 			lang: Type.Optional(
 				Type.String({
 					description:
-						"Restrict hits to one language, using the same identifiers as ast_grep_search's `lang` param (e.g. 'typescript', 'python', 'go').",
+						"Language identifier such as typescript, python, or go.",
 				}),
 			),
 		}),

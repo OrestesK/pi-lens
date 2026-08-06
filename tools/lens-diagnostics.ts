@@ -140,29 +140,10 @@ export function createLensDiagnosticsTool(
 		name: "lens_diagnostics" as const,
 		label: "Project Diagnostics",
 		description:
-			"Query pi-lens's diagnostic state. mode=delta/all are cache-only and instant; " +
-			"mode=full is an expensive active project-wide LSP scan merged with cached runner state.\n\n" +
-			"IMPORTANT: unlike lsp_diagnostics (LSP only), this tool covers ALL dispatch " +
-			"runners: LSP errors, tree-sitter structural rules, ast-grep security rules, " +
-			"biome/ruff/eslint lint findings, complexity violations, and more.\n\n" +
-			"mode=delta (default): all warnings for the current agent turn — fixable warnings " +
-			"(actionable-warnings cache) AND code quality/style/complexity issues " +
-			"(code-quality-warnings cache). Same scope as the turn-end advisory, current turn only.\n\n" +
-			"mode=all: blocking errors and warnings — with the actual messages (line, rule, " +
-			"text), not just counts — for every file the agent has " +
-			"EDITED this session (files that went through the dispatch pipeline). " +
-			"NOTE: unedited files with pre-existing errors do NOT appear here — this is " +
-			"not a full project scan. Use before declaring work done; stale blocking " +
-			"errors from earlier turns are visible even if they dropped from turn-end context.\n\n" +
-			"mode=full: EXPENSIVE active scan. Runs project-wide LSP diagnostics for " +
-			"all supported files (including unedited files), then merges/deduplicates " +
-			"that with mode=all cached runner state. Optional refreshRunners=cheap/all/cached " +
-			"folds in project-wide runner findings: the in-process scanners (tree-sitter + " +
-			"fact-rules + ast-grep) plus a FRESH run of the heavyweight analyzers — knip, " +
-			"jscpd (copy-paste), madge (circular deps), gitleaks (secrets), govulncheck/trivy " +
-			"(CVEs), dead-code — rather than a possibly-stale session_start cache; each " +
-			"analyzer de-dupes against a concurrent background run of itself, so this can't " +
-			"double-spawn. Bounded by the slowest analyzer (trivy's own ~180s ceiling).",
+			"Aggregate pi-lens diagnostics from LSP and all dispatch runners. " +
+			"delta (default) is current-turn cached findings; all is cached findings for files dispatched this session; " +
+			"full actively scans the project with LSP and merges cached runner findings. " +
+			"full with refreshRunners runs project analyzers fresh and may take minutes.",
 		promptSnippet:
 			"Use lens_diagnostics mode=all to verify no blocking errors remain; use mode=full for expensive project-wide checks",
 		renderResult: compactRenderResult<{
@@ -224,9 +205,7 @@ export function createLensDiagnosticsTool(
 				Type.String({
 					enum: ["delta", "all", "full"],
 					description:
-						"delta = current turn's fixable warnings (default). " +
-						"all = session diagnostics for edited/dispatched files. " +
-						"full = expensive active project-wide LSP scan plus cached runner diagnostics.",
+						"delta (default): current-turn cache; all: session cache for dispatched files; full: active project LSP scan plus cached runner findings.",
 				}),
 			),
 			refreshRunners: Type.Optional(
@@ -237,20 +216,20 @@ export function createLensDiagnosticsTool(
 					],
 					{
 						description:
-							"mode=full only: false/none = LSP + widget state only. cached/cheap/all all now trigger a FRESH run (#585) of the heavyweight project analyzers (knip, jscpd, madge, gitleaks, govulncheck, trivy, dead-code) in parallel — bounded by the slowest one (trivy's own ~180s ceiling) — instead of reading a possibly-stale session_start cache; safe to relaunch since each analyzer de-dupes concurrent runs against the same project root. cheap/all additionally refresh the in-process runners (tree-sitter + fact-rules + ast-grep) first.",
+							"full only. false/none: LSP + widget state. cached/cheap/all: fresh parallel heavyweight analyzers; cheap/all also refresh in-process runners. Slowest analyzer sets duration.",
 					},
 				),
 			),
 			maxProjectFiles: Type.Optional(
 				Type.Number({
 					description:
-						"mode=full refreshRunners=cheap/all only: cap project files scanned by the cheap project runners (tree-sitter + fact-rules + ast-grep). Does NOT bound the LSP sweep — use maxLspFiles for that.",
+						"full + refreshRunners=cheap/all: file cap for in-process runners; does not cap LSP.",
 				}),
 			),
 			maxLspFiles: Type.Optional(
 				Type.Number({
 					description:
-						"mode=full only: cap the number of files routed through the language server for the project-wide LSP sweep. On large projects (e.g. a Next.js app with thousands of source files) the uncapped sweep can take many minutes; set this to bound it. Default is generous (env PI_LENS_LSP_WORKSPACE_MAX_FILES, else 5000).",
+						"full only: LSP sweep file cap (default PI_LENS_LSP_WORKSPACE_MAX_FILES or 5000).",
 				}),
 			),
 			severity: Type.Optional(
@@ -263,24 +242,9 @@ export function createLensDiagnosticsTool(
 				Type.Array(Type.String(), {
 					maxItems: MAX_PATHS_ENTRIES,
 					description:
-						`Restrict any mode to an explicit file/directory list (max ${MAX_PATHS_ENTRIES} entries; ` +
-						"more errors instead of silently truncating). Entries may be relative " +
-						"(resolved against cwd) or absolute, and a directory entry matches all " +
-						"files under it (e.g. \"src/\"). mode=delta/all are a pure post-filter " +
-						"of cached/session state — they can only show findings for files pi-lens " +
-						"has already dispatched, so an unseen file shows nothing (use mode=full " +
-						"for an active scan). mode=full actively scans exactly these paths (LSP " +
-						"sweep + cheap in-process runners); cached heavyweight analyzers " +
-						"(jscpd/madge/gitleaks/knip) and the project snapshot are still post-filtered " +
-						"cache reads, never relaunched. Explicitly-listed files are NOT filtered " +
-						"through the project ignore matcher (matching lsp_diagnostics' paths " +
-						"semantics) — naming a file is assumed to mean it regardless of " +
-						".gitignore/.pi-lens.json; a directory entry's expansion still honors " +
-						"ignore (and when the list mixes directories and files, mode=full scans " +
-						"via the ignore-filtered walk, so an ignore-excluded file entry is only " +
-						"guaranteed an active scan in a files-only list). Nonexistent entries " +
-						"are skipped (mode=full notes them; useful for git-staged-file wrappers " +
-						"where a deleted-but-staged path can appear).",
+						`File/directory scope (max ${MAX_PATHS_ENTRIES}; relative to cwd or absolute). ` +
+						"delta/all only filter cached findings. full actively scans the scope, while heavyweight/project snapshots remain post-filtered cache data. " +
+						"Explicit files bypass ignore rules; directory expansion honors them. Mixed scopes use the ignore-filtered walk. Missing entries are skipped.",
 				}),
 			),
 		}),

@@ -44,8 +44,7 @@ export function createActivateToolsTool(
 		name: "pi_lens_activate_tools" as const,
 		label: "Activate pi-lens Tools",
 		description:
-			"Activate one or more situational pi-lens tools that stay registered but inactive by default, so the default tool list stays lean. " +
-			"Call this ONCE with the tools you need before using them — they become callable starting the NEXT turn. " +
+			"Activate registered situational pi-lens tools for the next turn. " +
 			`Available:\n${catalog}`,
 		promptSnippet:
 			"Activate situational ast-grep / lsp_navigation tools before using them",

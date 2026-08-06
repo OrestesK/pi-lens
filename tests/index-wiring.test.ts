@@ -136,6 +136,36 @@ describe("index.ts extension wiring", () => {
 			expect(properties).toHaveProperty("limit");
 		});
 
+		it("keeps startup tool schemas compact with the approved parameter shape", () => {
+			const pi = createPiMock();
+			extension(pi.asExtensionAPI());
+			const contracts: Record<string, { keys: string[]; required: string[] }> = {
+				lens_diagnostics: { keys: ["maxLspFiles", "maxProjectFiles", "mode", "paths", "refreshRunners", "severity"], required: [] },
+				lsp_diagnostics: { keys: ["concurrency", "path", "paths", "serverScope", "severity", "waitMs"], required: [] },
+				symbol_search: { keys: ["lang", "limit", "paths", "query"], required: ["query"] },
+				project_report: { keys: ["focus", "limit", "view"], required: [] },
+				module_report: { keys: ["blastRadius", "blastRadiusDepth", "focus", "maxRefsPerSymbol", "path", "view"], required: ["path"] },
+				read_symbol: { keys: ["kind", "path", "symbol"], required: ["path", "symbol"] },
+				read_enclosing: { keys: ["aroundLine", "kinds", "line", "maxLines", "onOversize", "path"], required: ["path", "line"] },
+				pi_lens_activate_tools: { keys: ["tools"], required: ["tools"] },
+				lens_diagnostic_mark: { keys: ["disposition", "filePath", "line", "message", "reason", "rule", "tool"], required: ["filePath", "line", "message", "disposition"] },
+			};
+			let descriptionChars = 0;
+			const countDescriptions = (value: unknown): number => {
+				if (!value || typeof value !== "object") return 0;
+				const record = value as Record<string, unknown>;
+				return (typeof record.description === "string" ? record.description.length : 0) +
+					Object.values(record).reduce<number>((sum, child) => sum + countDescriptions(child), 0);
+			};
+			for (const [name, contract] of Object.entries(contracts)) {
+				const tool = pi.getTool(name) as { description: string; parameters: { properties: Record<string, unknown>; required?: string[] } };
+				expect(Object.keys(tool.parameters.properties).sort()).toEqual(contract.keys);
+				expect(tool.parameters.required ?? []).toEqual(contract.required);
+				descriptionChars += tool.description.length + countDescriptions(tool.parameters);
+			}
+			expect(descriptionChars).toBeLessThanOrEqual(6_000);
+		});
+
 		// #dynamic-tooling: 6 situational tools are registered but start
 		// inactive on a host that supports pi's dynamic tool loading
 		// (pi.getActiveTools/setActiveTools); the 6 always-active tools plus
